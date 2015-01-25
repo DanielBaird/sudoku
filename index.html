@@ -38,13 +38,38 @@
 		padding: 0.3em;
 	}
 
-	.sudokuboard .message {
+	.sudokumessagediv {
+		text-align: center;
+		padding: 0.2em;
+	}
+
+	.sudokumessage {
 		color: #666;
 		text-align: center;
-		font-size: 70%;
 		font-weight: normal;
-		padding: 0.2em;
-		padding-top: 0.5em;
+		width: 100%;
+	}
+
+	.sudokumessage .info { font-size: 70%; }
+	.sudokumessage .info.hilight { background: #eee; }
+
+	.sudokumessage .sudokugames {
+		padding: 0.5em;
+		border-spacing: 0.5em;
+		text-align: center;
+		color: #666;
+	}
+
+	.sudokumessage .sudokugames th {
+		font-size: 90%;
+		background: #eee;
+	}
+
+	.sudokumessage .sudokugame {
+		padding: 0.1em;
+		text-align: center;
+		background: #eee;
+		font-size: 90%;
 	}
 
 	.sudokuboard .button {
@@ -52,9 +77,17 @@
 		color: #666;
 		padding: 0.1em 0.5em;
 		background: #eee;
+		font-weight: bold;
 		border: 1px solid #ccc;
 	}
 
+	.sudokuboard .button.more {
+		background: #ccc;
+		border: 1px solid #ccc;
+	}
+
+	.sudokuboard span.button.iesuxhover,
+	.sudokuboard span.button.more.iesuxhover,
 	.sudokuboard span.button:hover {
 		color: #000;
 		background: #fff;
@@ -97,14 +130,22 @@
 	.sudokuboard .block .notpossible        { cursor: default; color: #fff; }
 	.sudokuboard .block .possible.scratched { color: #eee; }
 
+	.sudokuboard td.block.iesuxhover,
 	.sudokuboard td.block:hover {
 		border: 1px solid #666;
 	}
 
-	.sudokuboard td.block:hover .possible.notscratched { background: #cfc; color: #060; }
-	.sudokuboard td.block:hover .possible.scratched    { background: #fee; color: #c99; }
-	.sudokuboard .block td.possible.notscratched:hover { background: #090; color: #cfc; }
-	.sudokuboard .block td.possible.scratched:hover    { background: #900; color: #fee; }
+	.sudokuboard td.block.iesuxhover td.possible.notscratched,
+	.sudokuboard td.block:hover td.possible.notscratched { background: #cfc; color: #060; border: none; }
+
+	.sudokuboard td.block.iesuxhover td.possible.scratched,
+	.sudokuboard td.block:hover td.possible.scratched    { background: #fee; color: #c99; border: none; }
+
+	.sudokuboard .block td.possible.notscratched.iesuxhover,
+	.sudokuboard .block td.possible.notscratched:hover { background: #090; color: #cfc; border: none; }
+
+	.sudokuboard .block td.possible.scratched.iesuxhover,
+	.sudokuboard .block td.possible.scratched:hover    { background: #900; color: #fee; border: none; }
 
 </style>
 
@@ -112,45 +153,59 @@
 // ========================================================
 // ========================================================
 
+/*
+xx2x7x6xx 1xxxx5x8x 75xx62xxx xxx4xxx6x
+8x5xxx1x4 x7xxx9xxx xxx75xx16 x9x2xxxx3 xx7x3x4xx
+*/
+
+
 function Sudoku(board) {
-	if (board == null) {
+	if (board == null || board == '') {
 		this.startBlank = true;
 		this.makeBoard('xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx');
 	} else {
 		this.startBlank = false;
 		this.makeBoard(board);
 	}
+	this.showMore = false;
+	this.finished = false;
 	return this;
 }
 // --------------------------------------------------------
 Sudoku.prototype.makeBoard = function makeBoard(boardstring) {
 	boardstring = boardstring.toLowerCase().replace(/[^x1-9]/g,'');
 	if (boardstring.length != 9*9) {
-		//this.error('board specification is incorrect (use 1-9 and x for a blank)');
-	}
-	this.board = new Array();
-	for (var i = 0; i < 9; i++) {
-		var row = new Array();
-		for (var j = 0; j < 9; j++) {
-			row.push( {number: 'x', possibles:[true,true,true, true,true,true, true,true,true],
-							scratches:[false,false,false, false,false,false, false,false,false],
-							locked: false}
-					);
+		alert('Board specification is the wrong length (use 1 to 9, and x for a blank).\n\n\n'
+			+ 'If you pasted text into the "Load" dialogue box, remember to arrange\n'
+			+ 'the board info onto one line before copying, so it all gets pasted in.'
+			);
+		return false;
+	} else {
+		this.board = new Array();
+		for (var i = 0; i < 9; i++) {
+			var row = new Array();
+			for (var j = 0; j < 9; j++) {
+				row.push( {number: 'x', possibles:[true,true,true, true,true,true, true,true,true],
+								scratches:[false,false,false, false,false,false, false,false,false],
+								locked: false}
+						);
+			}
+			this.board.push(row);
 		}
-		this.board.push(row);
-	}
 
-	// now add in the numbers provided..
-	var numchar;
-	for (var i = 0; i < 9; i++) { for (var j = 0; j < 9; j++) {
-		if ( (numchar = boardstring.charAt(i*9+j)) != 'x' ) {
-			this.addNumber(i, j, numchar, true);
-			this.board[i][j].locked = true;
-		}
-	}}
-	this.startboard = this.copyBoard(this.board);
-	this.saveboard = this.copyBoard(this.board);
-	this.display();
+		// now add in the numbers provided..
+		var numchar;
+		for (var i = 0; i < 9; i++) { for (var j = 0; j < 9; j++) {
+			if ( (numchar = boardstring.charAt(i*9+j)) != 'x' ) {
+				this.addNumber(i, j, numchar, true);
+				this.board[i][j].locked = true;
+			}
+		}}
+		this.startboard = this.copyBoard(this.board);
+		this.saveboard = this.copyBoard(this.board);
+		this.display();
+		return true;
+	}
 }
 // --------------------------------------------------------
 Sudoku.prototype.copyBoard = function(oldboard) {
@@ -174,6 +229,15 @@ Sudoku.prototype.copyBoard = function(oldboard) {
 	return newboard;
 }
 // --------------------------------------------------------
+Sudoku.prototype.loadString = function() {
+	var newstring = prompt('Enter or paste your game board:','');
+	if (newstring.length != '') {
+		if ( this.makeBoard(newstring) ) {
+			this.getStartSaver()();
+		}
+	}
+}
+// --------------------------------------------------------
 Sudoku.prototype.removeNumber = function(i, j) {
 	if (!this.board[i][j].locked) {
 		this.board[i][j].number = 'x';
@@ -190,6 +254,8 @@ Sudoku.prototype.addNumber = function(i, j, number, skipdisplay) {
 		this.board[i][j].possibles = [false,false,false, false,false,false, false,false,false];
 		if (!skipdisplay)
 			this.display();
+	} else {
+		alert('Number ' + number + ' can not go at row ' + (j+1) + ', column ' + (i+1) + '.');
 	}
 }
 // --------------------------------------------------------
@@ -242,84 +308,183 @@ Sudoku.prototype.getExclusions = function(i, j) {
 }
 // --------------------------------------------------------
 Sudoku.prototype.display = function(id) {
+
 	var myobject = this;
 	// --------------------
 	function mkposs(i, j, poss) {
 		var possibles = myobject.board[i][j].possibles;
 		var scratches = myobject.board[i][j].scratches;
 		return '<td class="'
-			+ ((possibles[poss-1])?('possible'):('notpossible'))
-			+ ' ' + ((scratches[poss-1])?('scratched'):('notscratched'))
+			+ ((possibles[poss-1])?('possible ' + ((scratches[poss-1])?('scratched'):('notscratched'))):('notpossible'))
 			+ '" id="sudoku' + i + j + (poss-1) + '">' + poss + '</td>';
 	}
 	// --------------------
-	html = '';
-	html += '<table class="sudokuboard">';
-	html += '<tr><td colspan="12" class="header">Sudoku Board 0.8b <a href="http://danielbaird.com">by Daniel Baird</a></td></tr>';
+	html = new Array();
+	html.push('<table id="sudokuboard" class="sudokuboard">');
+	html.push('<tr><td colspan="12" class="header">Sudoku Board 0.9beta <a href="http://danielbaird.com">by Daniel Baird</a></td></tr>');
+	var knownCount = 0;
 	for (var i = 0; i < 9; i++) {
-		html += '<tr>';
+		html.push('<tr>');
 
 		for (var j = 0; j < 9; j++) {
-			html += '<td id="sudoku' + i + j + '" class="block">';
+			html.push('<td id="sudoku' + i + j + 'block" class="block">');
 			var number = this.board[i][j].number;
 			var possibles = this.board[i][j].possibles;
 
-			html += '<table width="100%">';
+			html.push('<table width="100%">');
 			if (number != 'x') {
-				html += '<tr><td id="sudoku' + i + j + 'num" class="number' + ((this.board[i][j].locked)?(' locked'):('')) + '">' + number + '</td></tr>';
+				html.push('<tr><td id="sudoku' + i + j + 'num" class="number' + ((this.board[i][j].locked)?(' locked'):('')) + '">' + number + '</td></tr>');
+				knownCount++;
 			} else {
-				html += '<tr>' + mkposs(i, j, 1) + mkposs(i, j, 2) + mkposs(i, j, 3) + '</tr>';
-				html += '<tr>' + mkposs(i, j, 4) + mkposs(i, j, 5) + mkposs(i, j, 6) + '</tr>';
-				html += '<tr>' + mkposs(i, j, 7) + mkposs(i, j, 8) + mkposs(i, j, 9) + '</tr>';
+				html.push('<tr>' + mkposs(i, j, 1) + mkposs(i, j, 2) + mkposs(i, j, 3) + '</tr>');
+				html.push('<tr>' + mkposs(i, j, 4) + mkposs(i, j, 5) + mkposs(i, j, 6) + '</tr>');
+				html.push('<tr>' + mkposs(i, j, 7) + mkposs(i, j, 8) + mkposs(i, j, 9) + '</tr>');
 			}
-			html += '</table>';
-
-			html += '</td>';
-
+			html.push('</table>');
+			html.push('</td>');
 			if (j == 2 || j == 5) {
-				html += '<td class="vspacer"></td>';
+				html.push('<td class="vspacer"></td>');
 			}
 		}
-
-		html += '</tr>';
-
+		html.push('</tr>');
 		if (i == 2 || i == 5) {
-			html += '<tr><td class="hspacer" colspan="11"></td></tr>';
+			html.push('<tr><td class="hspacer" colspan="11"></td></tr>');
 		}
 	}
 
-	html += '<tr><td colspan="12" class="message">';
-	if (this.startBlank) {
-		html += 'setting up: click a number to enter it';
-	} else {
-		html += 'click small number to toggle maybe/maybe not<br>double-click to commit a number<br>double-click a committed number to reconsider!';
-	}
-	html += '</td></tr>';
+	html.push('<tr><td colspan="12"><div id="sudokumessagediv"></div></td></tr></table>');
+	document.getElementById('sudoku').innerHTML = html.join('');
 
-	html += '<tr><td colspan="12" class="controls">';
-	if (this.startBlank) {
-		html += '<span id="sudokusavestart" class="button">done with setup - start game</span> ';
-	} else {
-		html += '<span id="sudokurestart" class="button">restart</span> ';
-		html += '<span id="sudokusave" class="button">save</span> ';
-		html += '<span id="sudokurestore" class="button">restore</span>';
-	}
-	html += '</td></tr>';
-
-	html += '</table>';
-	document.getElementById('sudoku').innerHTML = html;
+	this.finished = (knownCount == 81);
 
 	// now the stuff is there, attach behaviours
 	for (var i = 0; i < 9; i++) { for (var j = 0; j < 9; j++) {
 		this.attachClicks(i,j);
 	}}
+	this.fillinMessage();
+}
+// --------------------------------------------------------
+Sudoku.prototype.fillinMessage = function() {
+	html = new Array();
+	html.push('<table class="sudokumessage"><tr><td colspan="3" class="info">');
+	if (this.startBlank) {
+		html.push('setting up: click a number to enter it<br>when you are ready to play, click "done setting up"');
+	} else if (this.finished) {
+		html.push('<b>Finished!</b>');
+	} else {
+		html.push('click small number to toggle maybe/maybe not<br>double-click to commit a number<br>double-click a committed number to reconsider!');
+	}
+	html.push('</td></tr>');
+	html.push('<tr><td colspan="3" class="controls">');
+	if (this.startBlank) {
+		html.push('<span id="sudokusavestart" class="button">done setting up</span>');
+		html.push(' <span id="sudokuload" class="button">load..</span>');
+	} else {
+		html.push('<span id="sudokurestart" class="button">restart</span> ');
+		html.push('<span id="sudokusave" class="button">save</span> ');
+		html.push('<span id="sudokurestore" class="button">restore</span>');
+	}
+
+/*
+	if (this.showMore) {
+		html.push(' <span id="sudokumore" class="button more">&lt;&lt; less</span></td></tr>');
+	} else {
+		html.push(' <span id="sudokumore" class="button more">more &gt;&gt;</span></td></tr>');
+	}
+
+	if (this.showMore) {
+		html.push('<tr><td class="info hilight" colspan="3">Copy the boards below to share or save this game.</td>');
+		html.push('<tr class="sudokugames"><th>Start</th><th>Saved</th><th>Current</th></tr><tr>');
+		var starttxt = savetxt = nowtxt = '';
+		for (var i = 0; i < 9; i++) {
+			for (var j = 0; j < 9; j++) {
+				starttxt += this.startboard[i][j].number;
+				savetxt += this.saveboard[i][j].number;
+				nowtxt += this.board[i][j].number;
+				if (j == 2 || j == 5) {
+					starttxt += ' ';
+					savetxt += ' ';
+					nowtxt += ' ';
+				}
+			}
+			starttxt += '<br />\n';
+			savetxt += '<br />\n';
+			nowtxt += '<br />\n';
+		}
+		html.push('<td class="sudokugame">');
+		html.push(starttxt);
+		html.push('</td><td class="sudokugame">');
+		html.push(savetxt);
+		html.push('</td><td class="sudokugame">');
+		html.push(nowtxt);
+		html.push('</td></tr>');
+
+		html.push('<tr><td class="info hilight" colspan="3">Paste a board below to play it.</td>');
+		html.push('<tr><td colspan="3" class="hilight"><textarea id="sudokuloadtext" rows="5" cols="20"></textarea>');
+		html.push('<br /><br /><span class="button" id="sudokuloadstart">Load as start</span><br /><br />');
+		html.push('<span class="button" id="sudokuloadcurrent">Load as current</span></td></tr>');
+	}
+*/
+	html.push('</table>');
+	document.getElementById('sudokumessagediv').innerHTML = html.join('');
+
 	if (this.startBlank) {
 		document.getElementById('sudokusavestart').onclick = this.getStartSaver();
+		document.getElementById('sudokuload').onclick = this.getLoader();
+		if (document.all) {
+			this.applyIESuckageFix(document.getElementById('sudokusavestart'));
+			this.applyIESuckageFix(document.getElementById('sudokuload'));
+		}
 	} else {
 		document.getElementById('sudokurestart').onclick = this.getRestarter();
 		document.getElementById('sudokusave').onclick = this.getSaver();
 		document.getElementById('sudokurestore').onclick = this.getRestorer();
+		if (document.all) {
+			this.applyIESuckageFix(document.getElementById('sudokurestart'));
+			this.applyIESuckageFix(document.getElementById('sudokusave'));
+			this.applyIESuckageFix(document.getElementById('sudokurestore'));
+		}
 	}
+//	document.getElementById('sudokumore').onclick = this.getMorer();
+//	if (document.all) this.applyIESuckageFix(document.getElementById('sudokumore'));
+}
+// --------------------------------------------------------
+Sudoku.prototype.applyIESuckageFix = function(elem) {
+	elem.onmouseover = function() { this.className = this.className + ' iesuxhover'; };
+	elem.onmouseout = function() { this.className = this.className.replace('iesuxhover',''); };
+}
+// --------------------------------------------------------
+Sudoku.prototype.attachClicks = function(i,j) {
+	for (var num = 0; num < 9; num++) {
+		if (this.board[i][j].possibles[num]) {
+			elem = document.getElementById('sudoku' + i + j + num);
+			if (document.all) this.applyIESuckageFix(elem);
+			if (elem) {
+				if (this.startBlank) {
+					elem.onclick = this.getNumberAdder(i, j, num);
+				} else {
+					elem.onclick = this.getScratchToggler(i, j, num);
+					elem.ondblclick = this.getNumberAdder(i, j, num);
+				}
+			}
+		}
+	}
+
+	if (document.all) this.applyIESuckageFix(document.getElementById('sudoku' + i + j + 'block'));
+	elem = document.getElementById('sudoku' + i + j + 'num');
+	if (elem) {
+		elem.ondblclick = this.getNumberRemover(i, j);
+	}
+}
+// --------------------------------------------------------
+Sudoku.prototype.getLoader = function() {
+	var myobject = this;
+	return function() { myobject.loadString(); };
+}
+// --------------------------------------------------------
+Sudoku.prototype.getMorer = function() {
+	var myobject = this;
+	return function() { myobject.showMore = !myobject.showMore; myobject.fillinMessage(); };
 }
 // --------------------------------------------------------
 Sudoku.prototype.getStartSaver = function() {
@@ -392,27 +557,6 @@ Sudoku.prototype.toggleStyle = function(elem, style1, style2) {
 	}
 }
 // --------------------------------------------------------
-Sudoku.prototype.attachClicks = function(i,j) {
-	for (var num = 0; num < 9; num++) {
-		if (this.board[i][j].possibles[num]) {
-			elem = document.getElementById('sudoku' + i + j + num);
-			if (elem) {
-				if (this.startBlank) {
-					elem.onclick = this.getNumberAdder(i, j, num);
-				} else {
-					elem.onclick = this.getScratchToggler(i, j, num);
-				}
-				elem.ondblclick = this.getNumberAdder(i, j, num);
-			}
-		}
-	}
-
-	elem = document.getElementById('sudoku' + i + j + 'num');
-	if (elem) {
-		elem.ondblclick = this.getNumberRemover(i, j);
-	}
-}
-// --------------------------------------------------------
 // --------------------------------------------------------
 // ========================================================
 function doit() {
@@ -427,11 +571,26 @@ function doit() {
 
 <body onload="doit()">
 
-<p>Copyright 2005 Daniel Baird (DanielBaird@gmail.com).  Test only, do not distribute!</p>
+<!-- Start of StatCounter Code -->
+<script type="text/javascript" language="javascript">
+var sc_project=1360049; 
+var sc_invisible=1; 
+var sc_partition=12; 
+var sc_security="02a31182"; 
+</script>
 
+<script type="text/javascript" language="javascript" src="http://www.statcounter.com/counter/counter.js"></script><noscript><a href="http://www.statcounter.com/" target="_blank"><img  src="http://c13.statcounter.com/counter.php?sc_project=1360049&java=0&security=02a31182&invisible=1" alt="best website stats" border="0"></a> </noscript>
+<!-- End of StatCounter Code -->
+
+<p>Copyright 2005-2010 Daniel Baird (DanielBaird@gmail.com).  Test only, do not distribute!</p>
+
+<button onclick="new Sudoku()">Blank board</button>
+<button onclick="new Sudoku('47x3xxx26 2x1xx6xx8 xx6x5x73x x1x8x3xx7 xx3xxx9xx 9xx2x4x1x x59x2x4xx 3xx4xx8x9 68xxx7x51')">Really, really easy game</button>
+<button onclick="new Sudoku('1xx8xxx3x 7xxxxxx2x xxx56xx7x xx8xxx9xx xx52174xx xx4xxx7xx x3xx89xxx x2xxxxxx8 x8xxx4xx6')">Harder game</button>
 <br>
-This sudoku board has been superceded by <a href="sudoku09.html">this new version</a>.
 <br>
+<div id="sudoku">
+</div>
 
 </body>
 
