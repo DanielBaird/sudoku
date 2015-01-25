@@ -1,0 +1,438 @@
+<html>
+
+<head>
+
+<style type="text/css">
+
+	.sudokuboard {
+		border: 6px solid #ccc;
+		border-spacing: 0;
+		font-weight: bold;
+		font-family: 'Courier New', sans-serif;
+		background: #ccc;
+	}
+
+	.sudokuboard .vspacer {	width: 1px; }
+	.sudokuboard .hspacer { height: 4px; }
+
+	.sudokuboard .header {
+		color: #aaa;
+		cursor: default;
+		text-align: center;
+		padding: 0.1em;
+		padding-bottom: 0.3em;
+	}
+
+	.sudokuboard .header a {
+		color: #aaa;
+		font-size: 70%;
+		text-decoration: none;
+	}
+
+	.sudokuboard .header a:hover {
+		text-decoration: underline;
+	}
+
+	.sudokuboard .controls {
+		text-align: center;
+		padding: 0.3em;
+	}
+
+	.sudokuboard .message {
+		color: #666;
+		text-align: center;
+		font-size: 70%;
+		font-weight: normal;
+		padding: 0.2em;
+		padding-top: 0.5em;
+	}
+
+	.sudokuboard .button {
+		cursor: pointer;
+		color: #666;
+		padding: 0.1em 0.5em;
+		background: #eee;
+		border: 1px solid #ccc;
+	}
+
+	.sudokuboard span.button:hover {
+		color: #000;
+		background: #fff;
+		border: 1px solid #666;
+	}
+
+	.sudokuboard .block {
+		margin: 0;
+		text-align: center;
+		border: 1px solid #ccc;
+		width: 2.5em;
+		height: 3em;
+		background: #fff;
+	}
+
+	.sudokuboard .block .number {
+		color: #090;
+		padding-top: 0.2em;
+		line-height: 80%;
+		cursor: pointer;
+		font-weight: 900;
+		font-size: 200%;
+		text-align: center;
+	}
+
+	.sudokuboard .block .number.locked {
+		cursor: default;
+		color: #000;
+	}
+
+	.sudokuboard .block .possible, .sudokuboard .block .notpossible {
+		text-align: center;
+		padding: 1px;
+		width: 0.5em;
+		line-height: 75%;
+		font-size: 80%;
+	}
+
+	.sudokuboard .block .possible           { cursor: pointer; color: #aaa; }
+	.sudokuboard .block .notpossible        { cursor: default; color: #fff; }
+	.sudokuboard .block .possible.scratched { color: #eee; }
+
+	.sudokuboard td.block:hover {
+		border: 1px solid #666;
+	}
+
+	.sudokuboard td.block:hover .possible.notscratched { background: #cfc; color: #060; }
+	.sudokuboard td.block:hover .possible.scratched    { background: #fee; color: #c99; }
+	.sudokuboard .block td.possible.notscratched:hover { background: #090; color: #cfc; }
+	.sudokuboard .block td.possible.scratched:hover    { background: #900; color: #fee; }
+
+</style>
+
+<script>
+// ========================================================
+// ========================================================
+
+function Sudoku(board) {
+	if (board == null) {
+		this.startBlank = true;
+		this.makeBoard('xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx xxxxxxxxx');
+	} else {
+		this.startBlank = false;
+		this.makeBoard(board);
+	}
+	return this;
+}
+// --------------------------------------------------------
+Sudoku.prototype.makeBoard = function makeBoard(boardstring) {
+	boardstring = boardstring.toLowerCase().replace(/[^x1-9]/g,'');
+	if (boardstring.length != 9*9) {
+		//this.error('board specification is incorrect (use 1-9 and x for a blank)');
+	}
+	this.board = new Array();
+	for (var i = 0; i < 9; i++) {
+		var row = new Array();
+		for (var j = 0; j < 9; j++) {
+			row.push( {number: 'x', possibles:[true,true,true, true,true,true, true,true,true],
+							scratches:[false,false,false, false,false,false, false,false,false],
+							locked: false}
+					);
+		}
+		this.board.push(row);
+	}
+
+	// now add in the numbers provided..
+	var numchar;
+	for (var i = 0; i < 9; i++) { for (var j = 0; j < 9; j++) {
+		if ( (numchar = boardstring.charAt(i*9+j)) != 'x' ) {
+			this.addNumber(i, j, numchar, true);
+			this.board[i][j].locked = true;
+		}
+	}}
+	this.startboard = this.copyBoard(this.board);
+	this.saveboard = this.copyBoard(this.board);
+	this.display();
+}
+// --------------------------------------------------------
+Sudoku.prototype.copyBoard = function(oldboard) {
+	var newboard = new Array();
+	for (var i = 0; i < 9; i++) {
+		var row = new Array();
+		for (var j = 0; j < 9; j++) {
+			var block = new Object();
+			block.number = oldboard[i][j].number;
+			block.possibles = new Array();
+			block.scratches = new Array();
+			for (var num = 0; num < 9; num++) {
+				block.possibles.push(oldboard[i][j].possibles[num]);
+				block.scratches.push(oldboard[i][j].scratches[num]);
+			}
+			block.locked = oldboard[i][j].locked;
+			row.push(block);
+		}
+		newboard.push(row);
+	}
+	return newboard;
+}
+// --------------------------------------------------------
+Sudoku.prototype.removeNumber = function(i, j) {
+	if (!this.board[i][j].locked) {
+		this.board[i][j].number = 'x';
+		this.recalcBoard();
+		this.display();
+	}
+}
+// --------------------------------------------------------
+Sudoku.prototype.addNumber = function(i, j, number, skipdisplay) {
+	if (this.board[i][j].possibles[number-1]) {
+		// only do it if the number given is a possible
+		this.board[i][j].number = number;
+		this.checkPossibles(i,j);
+		this.board[i][j].possibles = [false,false,false, false,false,false, false,false,false];
+		if (!skipdisplay)
+			this.display();
+	}
+}
+// --------------------------------------------------------
+Sudoku.prototype.recalcBoard = function() {
+	for (var i = 0; i < 9; i++) { for (var j = 0; j < 9; j++) {
+		this.board[i][j].possibles = [true,true,true, true,true,true, true,true,true];
+	}}
+	for (var i = 0; i < 9; i++) { for (var j = 0; j < 9; j++) {
+		this.checkPossibles(i,j);
+	}}
+}
+// --------------------------------------------------------
+Sudoku.prototype.checkPossibles = function(i, j) {
+//	alert('checking ' + i + j);
+	if (this.board[i][j].number != 'x') {
+		var number = this.board[i][j].number;
+		exclusions = this.getExclusions(i,j);
+		for (excl = 0; excl < exclusions.length; excl++) {
+			this.board[exclusions[excl].i][exclusions[excl].j].possibles[number-1] = false;
+		}
+	}
+}
+// --------------------------------------------------------
+Sudoku.prototype.getExclusions = function(i, j) {
+	// return an array of the points that the indicated block is exclusive within
+	// that means blocks in the same column or the same row or the same square of 9.
+	excls = new Array();
+	// --------------------
+	function add(addi, addj) {
+		// use this inner func to avoid adding the point itself.
+		if (addi != i || addj != j) {
+			excls.push({i:addi, j:addj});
+		}
+	}
+	// --------------------
+	// first do the row and column
+	for (var x = 0; x < 9; x++) {
+		add(x,j);
+		add(i,x);
+	}
+	// now the block..
+	var blocki = Math.floor(i/3);
+	var blockj = Math.floor(j/3);
+	for (var xi = 0; xi < 3; xi++) {
+		for (var xj = 0; xj < 3; xj++) {
+			add(blocki*3 + xi, blockj*3 + xj);
+		}
+	}
+	return excls;
+}
+// --------------------------------------------------------
+Sudoku.prototype.display = function(id) {
+	var myobject = this;
+	// --------------------
+	function mkposs(i, j, poss) {
+		var possibles = myobject.board[i][j].possibles;
+		var scratches = myobject.board[i][j].scratches;
+		return '<td class="'
+			+ ((possibles[poss-1])?('possible'):('notpossible'))
+			+ ' ' + ((scratches[poss-1])?('scratched'):('notscratched'))
+			+ '" id="sudoku' + i + j + (poss-1) + '">' + poss + '</td>';
+	}
+	// --------------------
+	html = '';
+	html += '<table class="sudokuboard">';
+	html += '<tr><td colspan="12" class="header">Sudoku Board 0.8b <a href="http://danielbaird.com">by Daniel Baird</a></td></tr>';
+	for (var i = 0; i < 9; i++) {
+		html += '<tr>';
+
+		for (var j = 0; j < 9; j++) {
+			html += '<td id="sudoku' + i + j + '" class="block">';
+			var number = this.board[i][j].number;
+			var possibles = this.board[i][j].possibles;
+
+			html += '<table width="100%">';
+			if (number != 'x') {
+				html += '<tr><td id="sudoku' + i + j + 'num" class="number' + ((this.board[i][j].locked)?(' locked'):('')) + '">' + number + '</td></tr>';
+			} else {
+				html += '<tr>' + mkposs(i, j, 1) + mkposs(i, j, 2) + mkposs(i, j, 3) + '</tr>';
+				html += '<tr>' + mkposs(i, j, 4) + mkposs(i, j, 5) + mkposs(i, j, 6) + '</tr>';
+				html += '<tr>' + mkposs(i, j, 7) + mkposs(i, j, 8) + mkposs(i, j, 9) + '</tr>';
+			}
+			html += '</table>';
+
+			html += '</td>';
+
+			if (j == 2 || j == 5) {
+				html += '<td class="vspacer"></td>';
+			}
+		}
+
+		html += '</tr>';
+
+		if (i == 2 || i == 5) {
+			html += '<tr><td class="hspacer" colspan="11"></td></tr>';
+		}
+	}
+
+	html += '<tr><td colspan="12" class="message">';
+	if (this.startBlank) {
+		html += 'setting up: click a number to enter it';
+	} else {
+		html += 'click small number to toggle maybe/maybe not<br>double-click to commit a number<br>double-click a committed number to reconsider!';
+	}
+	html += '</td></tr>';
+
+	html += '<tr><td colspan="12" class="controls">';
+	if (this.startBlank) {
+		html += '<span id="sudokusavestart" class="button">done with setup - start game</span> ';
+	} else {
+		html += '<span id="sudokurestart" class="button">restart</span> ';
+		html += '<span id="sudokusave" class="button">save</span> ';
+		html += '<span id="sudokurestore" class="button">restore</span>';
+	}
+	html += '</td></tr>';
+
+	html += '</table>';
+	document.getElementById('sudoku').innerHTML = html;
+
+	// now the stuff is there, attach behaviours
+	for (var i = 0; i < 9; i++) { for (var j = 0; j < 9; j++) {
+		this.attachClicks(i,j);
+	}}
+	if (this.startBlank) {
+		document.getElementById('sudokusavestart').onclick = this.getStartSaver();
+	} else {
+		document.getElementById('sudokurestart').onclick = this.getRestarter();
+		document.getElementById('sudokusave').onclick = this.getSaver();
+		document.getElementById('sudokurestore').onclick = this.getRestorer();
+	}
+}
+// --------------------------------------------------------
+Sudoku.prototype.getStartSaver = function() {
+	var myobject = this;
+	return function() {
+		for (var i = 0; i < 9; i++) { for (var j = 0; j < 9; j++) {
+			myobject.board[i][j].locked = (myobject.board[i][j].number != 'x');
+		}}
+		myobject.startboard = myobject.copyBoard(myobject.board);
+		myobject.startBlank = false;
+		myobject.display();
+	};
+}
+// --------------------------------------------------------
+Sudoku.prototype.getRestarter = function() {
+	var myobject = this;
+	return function() {
+		myobject.board = myobject.copyBoard(myobject.startboard);
+		myobject.display();
+	};
+}
+// --------------------------------------------------------
+Sudoku.prototype.getSaver = function() {
+	var myobject = this;
+	return function() {
+		myobject.saveboard = myobject.copyBoard(myobject.board);
+	};
+}
+// --------------------------------------------------------
+Sudoku.prototype.getRestorer = function() {
+	var myobject = this;
+	return function() {
+		myobject.board = myobject.copyBoard(myobject.saveboard);
+		myobject.display();
+	};
+}
+// --------------------------------------------------------
+Sudoku.prototype.getScratchToggler = function(i, j, num) {
+	var myobject = this;
+	return function() {
+		myobject.toggleStyle(this, 'scratched', 'notscratched');
+		myobject.board[i][j].scratches[num] = !myobject.board[i][j].scratches[num];
+	};
+}
+// --------------------------------------------------------
+Sudoku.prototype.getNumberRemover = function(i, j) {
+	var myobject = this;
+	if (this.board[i][j].locked) {
+		return function() {;};
+	} else {
+		return function() {
+			myobject.removeNumber(i, j);
+		};
+	}
+}
+// --------------------------------------------------------
+Sudoku.prototype.getNumberAdder = function(i, j, num) {
+	var myobject = this;
+	return function() {
+		myobject.addNumber(i, j, num+1);
+	};
+}
+// --------------------------------------------------------
+Sudoku.prototype.toggleStyle = function(elem, style1, style2) {
+	oldclass = ' ' + elem.className + ' ';
+	if (oldclass.indexOf(' ' + style1 + ' ') != -1) {
+		elem.className = oldclass.replace(' ' + style1 + ' ', ' ' + style2 + ' ');
+	} else {
+		elem.className = oldclass.replace(' ' + style2 + ' ', ' ' + style1 + ' ');
+	}
+}
+// --------------------------------------------------------
+Sudoku.prototype.attachClicks = function(i,j) {
+	for (var num = 0; num < 9; num++) {
+		if (this.board[i][j].possibles[num]) {
+			elem = document.getElementById('sudoku' + i + j + num);
+			if (elem) {
+				if (this.startBlank) {
+					elem.onclick = this.getNumberAdder(i, j, num);
+				} else {
+					elem.onclick = this.getScratchToggler(i, j, num);
+				}
+				elem.ondblclick = this.getNumberAdder(i, j, num);
+			}
+		}
+	}
+
+	elem = document.getElementById('sudoku' + i + j + 'num');
+	if (elem) {
+		elem.ondblclick = this.getNumberRemover(i, j);
+	}
+}
+// --------------------------------------------------------
+// --------------------------------------------------------
+// ========================================================
+function doit() {
+	document.getElementById('sudoku').innerHTML = '<b>click a button.</b>';
+}
+// ========================================================
+// ========================================================
+
+</script>
+
+</head>
+
+<body onload="doit()">
+
+<p>Copyright 2005 Daniel Baird (DanielBaird@gmail.com).  Test only, do not distribute!</p>
+
+<br>
+This sudoku board has been superceded by <a href="sudoku09.html">this new version</a>.
+<br>
+
+</body>
+
+</html>
